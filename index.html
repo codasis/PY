@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Sheets Connected Website</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --border: #e2e8f0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      margin: 0;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      display: grid;
+      gap: 2rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: var(--primary);
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background-color: var(--bg);
+    }
+
+    .status {
+      margin-top: 1rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Form Section -->
+    <div class="card">
+      <h2>Send Data to Google Sheet</h2>
+      <form id="sheetForm">
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" id="name" required>
+        </div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required>
+        </div>
+        <div class="form-group">
+          <label for="message">Message</label>
+          <textarea id="message" rows="3" required></textarea>
+        </div>
+        <button type="submit" id="submitBtn">Submit Entry</button>
+      </form>
+      <div id="status" class="status"></div>
+    </div>
+
+    <!-- Data Table Section -->
+    <div class="card">
+      <h2>Live Sheet Data</h2>
+      <button onclick="loadSheetData()">Refresh Data</button>
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="3">Click "Refresh Data" to load entries...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Paste your Google Apps Script Web App URL here
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxPlzsp5-YMSL97nFWs0VrzgHX5RtVPhvPmUynhe_qCjExwsGMN-e0duv8Aolh4GG-g/exec';
+
+    // Submit form data to Google Sheet
+    document.getElementById('sheetForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submitBtn');
+      const status = document.getElementById('status');
+      submitBtn.disabled = true;
+      status.style.color = '#2563eb';
+      status.textContent = 'Submitting...';
+
+      const payload = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        message: document.getElementById('message').value
+      };
+
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors', // Bypasses CORS restrictions for Google Apps Script
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        status.style.color = '#16a34a';
+        status.textContent = 'Successfully submitted to Google Sheet!';
+        document.getElementById('sheetForm').reset();
+        
+        // Reload data after a brief delay to account for sheet update time
+        setTimeout(loadSheetData, 1000);
+      } catch (err) {
+        status.style.color = '#dc2626';
+        status.textContent = 'Failed to submit. Please try again.';
+        console.error('Error:', err);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    // Fetch and display live data from Google Sheet
+    async function loadSheetData() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '<tr><td colspan="3">Loading data...</td></tr>';
+
+      try {
+        const response = await fetch(SCRIPT_URL);
+        const data = await response.json();
+
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3">No records found.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.map(row => `
+          <tr>
+            <td>${row.name || ''}</td>
+            <td>${row.email || ''}</td>
+            <td>${row.message || ''}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="3" style="color: red;">Error fetching data. Ensure script deployment is set to "Anyone".</td></tr>';
+        console.error('Error:', err);
+      }
+    }
+
+    // Automatically load data when page opens
+    window.addEventListener('DOMContentLoaded', loadSheetData);
+  </script>
+</body>
+</html>
